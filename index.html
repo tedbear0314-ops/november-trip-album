@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>11月區旅行相簿</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: light;
+    }
+
+    body {
+      min-height: 100vh;
+      background: #f4f7f2;
+      color: #17201a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", Arial, sans-serif;
+    }
+
+    button,
+    label {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .active-tab {
+      background: #ffffff;
+      color: #166534;
+      box-shadow: 0 10px 24px rgba(22, 101, 52, 0.12);
+    }
+
+    .media-tile {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
+      border-radius: 8px;
+      background: #e5e7eb;
+    }
+
+    .media-tile img,
+    .media-tile video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .delete-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: rgba(185, 28, 28, 0.94);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
+      z-index: 2;
+    }
+
+    #lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(6, 10, 8, 0.94);
+    }
+
+    #lightbox img,
+    #lightbox video {
+      max-width: 100%;
+      max-height: 88vh;
+      border-radius: 8px;
+      object-fit: contain;
+      background: #000;
+    }
+
+    .close-lightbox-btn {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 48px;
+      height: 48px;
+      border-radius: 999px;
+      background: #fff;
+      color: #111827;
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+      z-index: 90;
+    }
+  </style>
+</head>
+<body>
+  <main class="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-4 sm:px-6">
+    <header class="sticky top-0 z-40 -mx-4 border-b border-emerald-900/10 bg-[#f4f7f2]/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+      <div class="flex items-center justify-between gap-3">
+        <h1 class="text-xl font-black tracking-normal text-emerald-950 sm:text-2xl">11月區旅行相簿</h1>
+        <button id="refreshBtn" type="button" class="hidden h-11 w-11 place-items-center rounded-full bg-white text-emerald-800 shadow-sm ring-1 ring-emerald-900/10" onclick="fetchAlbum()" title="重新整理">
+          <i class="fa-solid fa-rotate-right"></i>
+        </button>
+      </div>
+
+      <nav class="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-emerald-950/10 p-1">
+        <button onclick="switchPage('upload')" id="tab-upload" class="active-tab h-12 rounded-md text-base font-black transition">
+          <i class="fa-solid fa-cloud-arrow-up mr-2"></i>上傳
+        </button>
+        <button onclick="switchPage('album')" id="tab-album" class="h-12 rounded-md text-base font-black text-emerald-950/65 transition">
+          <i class="fa-solid fa-images mr-2"></i>相簿
+        </button>
+      </nav>
+    </header>
+
+    <section id="page-upload" class="flex-1 py-5">
+      <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-emerald-900/10 sm:p-7">
+        <div class="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-2xl font-black text-emerald-950">新增照片</h2>
+            <p class="mt-1 text-sm font-semibold text-slate-500">可一次選多張，手機也可以直接拍照上傳。</p>
+          </div>
+          <div id="configBadge" class="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">待設定</div>
+        </div>
+
+        <label for="fileInput" class="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-emerald-700/30 bg-emerald-50 px-5 py-8 text-center text-emerald-900 transition active:scale-[0.99]">
+          <i class="fa-solid fa-images mb-3 text-4xl"></i>
+          <span class="text-xl font-black">選擇照片或影片</span>
+          <span class="mt-2 text-sm font-semibold text-emerald-900/60">JPG、PNG、HEIC、MP4、MOV</span>
+        </label>
+        <input type="file" id="fileInput" multiple accept="image/*,video/*" class="hidden" onchange="previewFiles()">
+
+        <div id="previewGrid" class="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-4"></div>
+
+        <button id="startUploadBtn" onclick="processUpload()" class="mt-6 hidden h-14 w-full rounded-lg bg-emerald-700 text-lg font-black text-white shadow-sm transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300">
+          <i class="fa-solid fa-cloud-arrow-up mr-2"></i>開始上傳 <span id="fileCount">0</span> 個檔案
+        </button>
+
+        <div id="uploadStatus" class="mt-5 min-h-8 text-center text-base font-black"></div>
+      </div>
+    </section>
+
+    <section id="page-album" class="hidden flex-1 py-5">
+      <div class="mb-4 flex items-center justify-between gap-3">
+        <h2 class="text-2xl font-black text-emerald-950">相簿</h2>
+        <div id="albumCount" class="text-sm font-black text-slate-500"></div>
+      </div>
+      <div id="albumGrid" class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div class="col-span-full rounded-lg bg-white py-24 text-center text-lg font-black text-slate-400 ring-1 ring-emerald-900/10">
+          <i class="fa-solid fa-spinner fa-spin mr-2 text-emerald-700"></i>讀取中
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="lightbox" onclick="closeLightbox()">
+    <button class="close-lightbox-btn" onclick="closeLightbox()" title="關閉">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+    <img id="lightboxImg" alt="" onclick="event.stopPropagation();">
+    <video id="lightboxVideo" controls playsinline onclick="event.stopPropagation();"></video>
+  </div>
+
+  <script>
+    const CLOUDINARY_CONFIG = {
+      cloudName: "dlknzcex3",
+      uploadPreset: "november_trip_album_unsigned",
+      tag: "november-trip",
+      folder: "november-trip"
+    };
+
+    let filesToUpload = [];
+    let currentPage = "upload";
+
+    const els = {
+      fileInput: document.getElementById("fileInput"),
+      previewGrid: document.getElementById("previewGrid"),
+      startUploadBtn: document.getElementById("startUploadBtn"),
+      fileCount: document.getElementById("fileCount"),
+      uploadStatus: document.getElementById("uploadStatus"),
+      albumGrid: document.getElementById("albumGrid"),
+      albumCount: document.getElementById("albumCount"),
+      refreshBtn: document.getElementById("refreshBtn"),
+      configBadge: document.getElementById("configBadge"),
+      lightbox: document.getElementById("lightbox"),
+      lightboxImg: document.getElementById("lightboxImg"),
+      lightboxVideo: document.getElementById("lightboxVideo")
+    };
+
+    function hasCloudinaryConfig() {
+      return Boolean(
+        CLOUDINARY_CONFIG.cloudName &&
+        CLOUDINARY_CONFIG.uploadPreset &&
+        !CLOUDINARY_CONFIG.cloudName.startsWith("請填入") &&
+        !CLOUDINARY_CONFIG.uploadPreset.startsWith("請填入")
+      );
+    }
+
+    function updateConfigBadge() {
+      if (hasCloudinaryConfig()) {
+        els.configBadge.textContent = "已設定";
+        els.configBadge.className = "rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800";
+        return;
+      }
+
+      els.configBadge.textContent = "待設定";
+      els.configBadge.className = "rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800";
+    }
+
+    function switchPage(page) {
+      currentPage = page;
+      document.getElementById("page-upload").classList.toggle("hidden", page !== "upload");
+      document.getElementById("page-album").classList.toggle("hidden", page !== "album");
+      document.getElementById("tab-upload").className = page === "upload"
+        ? "active-tab h-12 rounded-md text-base font-black transition"
+        : "h-12 rounded-md text-base font-black text-emerald-950/65 transition";
+      document.getElementById("tab-album").className = page === "album"
+        ? "active-tab h-12 rounded-md text-base font-black transition"
+        : "h-12 rounded-md text-base font-black text-emerald-950/65 transition";
+      els.refreshBtn.classList.toggle("hidden", page !== "album");
+      els.refreshBtn.classList.toggle("grid", page === "album");
+
+      if (page === "album") {
+        fetchAlbum();
+      }
+    }
+
+    function previewFiles() {
+      const selectedFiles = Array.from(els.fileInput.files || []);
+
+      selectedFiles.forEach(file => {
+        if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+          return;
+        }
+
+        filesToUpload.push({
+          id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+          file,
+          previewUrl: URL.createObjectURL(file),
+          kind: file.type.startsWith("video/") ? "video" : "image"
+        });
+      });
+
+      els.fileInput.value = "";
+      renderPreview();
+    }
+
+    function renderPreview() {
+      els.previewGrid.innerHTML = "";
+
+      filesToUpload.forEach((item, index) => {
+        const tile = document.createElement("div");
+        tile.className = "media-tile ring-1 ring-slate-200";
+
+        const media = item.kind === "video"
+          ? `<video src="${item.previewUrl}" muted playsinline></video><span class="absolute bottom-2 left-2 rounded bg-black/65 px-2 py-1 text-xs font-black text-white"><i class="fa-solid fa-video mr-1"></i>影片</span>`
+          : `<img src="${item.previewUrl}" alt="">`;
+
+        tile.innerHTML = `
+          ${media}
+          <button type="button" class="delete-btn" onclick="removeFile(${index})" title="移除">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        `;
+        els.previewGrid.appendChild(tile);
+      });
+
+      els.fileCount.textContent = filesToUpload.length;
+      els.startUploadBtn.classList.toggle("hidden", filesToUpload.length === 0);
+      els.uploadStatus.textContent = "";
+    }
+
+    function removeFile(index) {
+      URL.revokeObjectURL(filesToUpload[index].previewUrl);
+      filesToUpload.splice(index, 1);
+      renderPreview();
+    }
+
+    async function processUpload() {
+      if (!hasCloudinaryConfig()) {
+        setStatus("請先填入 Cloudinary cloud name 與 unsigned upload preset。", "warning");
+        return;
+      }
+
+      els.startUploadBtn.disabled = true;
+
+      let successCount = 0;
+      for (let i = 0; i < filesToUpload.length; i += 1) {
+        const item = filesToUpload[i];
+        setStatus(`上傳中 ${i + 1} / ${filesToUpload.length}`, "loading");
+
+        try {
+          await uploadToCloudinary(item.file);
+          successCount += 1;
+        } catch (error) {
+          console.error(error);
+          setStatus(`上傳失敗：${item.file.name}`, "error");
+          await wait(900);
+        }
+      }
+
+      filesToUpload.forEach(item => URL.revokeObjectURL(item.previewUrl));
+      filesToUpload = [];
+      renderPreview();
+      els.startUploadBtn.disabled = false;
+
+      setStatus(`完成上傳 ${successCount} 個檔案`, successCount ? "success" : "error");
+
+      if (currentPage === "album") {
+        fetchAlbum();
+      }
+    }
+
+    async function uploadToCloudinary(file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", CLOUDINARY_CONFIG.uploadPreset);
+      formData.append("tags", CLOUDINARY_CONFIG.tag);
+
+      if (CLOUDINARY_CONFIG.folder) {
+        formData.append("folder", CLOUDINARY_CONFIG.folder);
+      }
+
+      const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/auto/upload`;
+      const response = await fetch(url, {
+        method: "POST",
+        body: formData
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error?.message || "Cloudinary upload failed");
+      }
+
+      return result;
+    }
+
+    async function fetchAlbum() {
+      if (!hasCloudinaryConfig()) {
+        els.albumGrid.innerHTML = emptyState("請先填入 Cloudinary 設定。");
+        els.albumCount.textContent = "";
+        return;
+      }
+
+      els.albumGrid.innerHTML = loadingState();
+      els.albumCount.textContent = "";
+
+      try {
+        const [images, videos] = await Promise.all([
+          fetchCloudinaryList("image"),
+          fetchCloudinaryList("video")
+        ]);
+        const assets = [...images, ...videos].sort((a, b) => {
+          return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+        });
+
+        renderAlbum(assets);
+      } catch (error) {
+        console.error(error);
+        els.albumGrid.innerHTML = emptyState("讀取失敗，請確認 tag 清單功能已開啟。");
+      }
+    }
+
+    async function fetchCloudinaryList(resourceType) {
+      const tag = encodeURIComponent(CLOUDINARY_CONFIG.tag);
+      const url = `https://res.cloudinary.com/${CLOUDINARY_CONFIG.cloudName}/${resourceType}/list/${tag}.json`;
+      const response = await fetch(url, { cache: "no-store" });
+
+      if (response.status === 404) {
+        return [];
+      }
+
+      if (!response.ok) {
+        throw new Error(`Cloudinary list ${resourceType} failed`);
+      }
+
+      const data = await response.json();
+      return (data.resources || []).map(asset => ({ ...asset, resource_type: resourceType }));
+    }
+
+    function renderAlbum(assets) {
+      if (!assets.length) {
+        els.albumGrid.innerHTML = emptyState("目前沒有檔案。");
+        els.albumCount.textContent = "";
+        return;
+      }
+
+      els.albumCount.textContent = `${assets.length} 個檔案`;
+      els.albumGrid.innerHTML = "";
+
+      assets.forEach(asset => {
+        const urls = buildCloudinaryUrls(asset);
+        const tile = document.createElement("button");
+        tile.type = "button";
+        tile.className = "media-tile bg-white text-left shadow-sm ring-1 ring-emerald-900/10 transition active:scale-[0.99]";
+        tile.onclick = () => openLightbox(urls.full, asset.resource_type);
+
+        tile.innerHTML = asset.resource_type === "video"
+          ? `<video src="${urls.thumb}" muted playsinline preload="metadata"></video><span class="absolute bottom-2 left-2 rounded bg-black/65 px-2 py-1 text-xs font-black text-white"><i class="fa-solid fa-video mr-1"></i>影片</span>`
+          : `<img src="${urls.thumb}" loading="lazy" alt="">`;
+
+        els.albumGrid.appendChild(tile);
+      });
+    }
+
+    function buildCloudinaryUrls(asset) {
+      const base = `https://res.cloudinary.com/${CLOUDINARY_CONFIG.cloudName}/${asset.resource_type}/upload`;
+      const version = asset.version ? `/v${asset.version}` : "";
+      const publicId = asset.public_id.split("/").map(encodeURIComponent).join("/");
+      const extension = asset.format ? `.${asset.format}` : "";
+      const source = `${base}${version}/${publicId}${extension}`;
+
+      if (asset.resource_type === "video") {
+        return {
+          thumb: `${base}/f_auto,q_auto,so_0,w_700,c_fill,ar_1:1${version}/${publicId}${extension}`,
+          full: source
+        };
+      }
+
+      return {
+        thumb: `${base}/f_auto,q_auto,w_700,c_fill,ar_1:1${version}/${publicId}${extension}`,
+        full: `${base}/f_auto,q_auto${version}/${publicId}${extension}`
+      };
+    }
+
+    function openLightbox(url, resourceType) {
+      els.lightboxImg.style.display = resourceType === "image" ? "block" : "none";
+      els.lightboxVideo.style.display = resourceType === "video" ? "block" : "none";
+
+      if (resourceType === "video") {
+        els.lightboxImg.removeAttribute("src");
+        els.lightboxVideo.src = url;
+        els.lightboxVideo.play().catch(() => {});
+      } else {
+        els.lightboxVideo.pause();
+        els.lightboxVideo.removeAttribute("src");
+        els.lightboxImg.src = url;
+      }
+
+      els.lightbox.style.display = "flex";
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeLightbox() {
+      els.lightbox.style.display = "none";
+      els.lightboxVideo.pause();
+      els.lightboxVideo.removeAttribute("src");
+      els.lightboxImg.removeAttribute("src");
+      document.body.style.overflow = "auto";
+    }
+
+    function setStatus(message, type) {
+      const styles = {
+        loading: "mt-5 min-h-8 text-center text-base font-black text-emerald-700",
+        success: "mt-5 min-h-8 text-center text-base font-black text-emerald-700",
+        warning: "mt-5 min-h-8 text-center text-base font-black text-amber-700",
+        error: "mt-5 min-h-8 text-center text-base font-black text-red-700"
+      };
+
+      els.uploadStatus.className = styles[type] || styles.loading;
+      els.uploadStatus.textContent = message;
+    }
+
+    function loadingState() {
+      return `
+        <div class="col-span-full rounded-lg bg-white py-24 text-center text-lg font-black text-slate-400 ring-1 ring-emerald-900/10">
+          <i class="fa-solid fa-spinner fa-spin mr-2 text-emerald-700"></i>讀取中
+        </div>
+      `;
+    }
+
+    function emptyState(message) {
+      return `
+        <div class="col-span-full rounded-lg bg-white py-24 text-center text-lg font-black text-slate-400 ring-1 ring-emerald-900/10">
+          ${message}
+        </div>
+      `;
+    }
+
+    function wait(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    updateConfigBadge();
+  </script>
+</body>
+</html>
