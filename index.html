@@ -95,6 +95,22 @@
       box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
       z-index: 90;
     }
+
+    .download-lightbox-btn {
+      position: absolute;
+      top: 16px;
+      right: 76px;
+      width: 48px;
+      height: 48px;
+      border-radius: 999px;
+      background: #fff;
+      color: #111827;
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+      z-index: 90;
+    }
   </style>
 </head>
 <body>
@@ -158,6 +174,9 @@
   </main>
 
   <div id="lightbox" onclick="closeLightbox()">
+    <a id="lightboxDownload" class="download-lightbox-btn" href="#" download title="下載" onclick="event.stopPropagation();">
+      <i class="fa-solid fa-download"></i>
+    </a>
     <button class="close-lightbox-btn" onclick="closeLightbox()" title="關閉">
       <i class="fa-solid fa-xmark"></i>
     </button>
@@ -187,6 +206,7 @@
       refreshBtn: document.getElementById("refreshBtn"),
       configBadge: document.getElementById("configBadge"),
       lightbox: document.getElementById("lightbox"),
+      lightboxDownload: document.getElementById("lightboxDownload"),
       lightboxImg: document.getElementById("lightboxImg"),
       lightboxVideo: document.getElementById("lightboxVideo")
     };
@@ -361,7 +381,7 @@
         renderAlbum(assets);
       } catch (error) {
         console.error(error);
-        els.albumGrid.innerHTML = emptyState("讀取失敗，請確認 tag 清單功能已開啟。");
+        els.albumGrid.innerHTML = emptyState("讀取失敗，請到 Cloudinary Security 設定開啟 Resource list。");
       }
     }
 
@@ -397,7 +417,7 @@
         const tile = document.createElement("button");
         tile.type = "button";
         tile.className = "media-tile bg-white text-left shadow-sm ring-1 ring-emerald-900/10 transition active:scale-[0.99]";
-        tile.onclick = () => openLightbox(urls.full, asset.resource_type);
+        tile.onclick = () => openLightbox(urls.full, asset.resource_type, urls.download);
 
         tile.innerHTML = asset.resource_type === "video"
           ? `<video src="${urls.thumb}" muted playsinline preload="metadata"></video><span class="absolute bottom-2 left-2 rounded bg-black/65 px-2 py-1 text-xs font-black text-white"><i class="fa-solid fa-video mr-1"></i>影片</span>`
@@ -417,19 +437,22 @@
       if (asset.resource_type === "video") {
         return {
           thumb: `${base}/f_auto,q_auto,so_0,w_700,c_fill,ar_1:1${version}/${publicId}${extension}`,
-          full: source
+          full: source,
+          download: `${base}/fl_attachment${version}/${publicId}${extension}`
         };
       }
 
       return {
         thumb: `${base}/f_auto,q_auto,w_700,c_fill,ar_1:1${version}/${publicId}${extension}`,
-        full: `${base}/f_auto,q_auto${version}/${publicId}${extension}`
+        full: `${base}/f_auto,q_auto${version}/${publicId}${extension}`,
+        download: `${base}/fl_attachment${version}/${publicId}${extension}`
       };
     }
 
-    function openLightbox(url, resourceType) {
+    function openLightbox(url, resourceType, downloadUrl) {
       els.lightboxImg.style.display = resourceType === "image" ? "block" : "none";
       els.lightboxVideo.style.display = resourceType === "video" ? "block" : "none";
+      els.lightboxDownload.href = downloadUrl || url;
 
       if (resourceType === "video") {
         els.lightboxImg.removeAttribute("src");
