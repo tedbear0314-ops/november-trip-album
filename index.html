@@ -143,11 +143,6 @@
           <div id="configBadge" class="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">待設定</div>
         </div>
 
-        <label class="mb-4 block text-left text-sm font-black text-emerald-950" for="uploaderName">
-          上傳者姓名或暱稱
-          <input id="uploaderName" type="text" inputmode="text" autocomplete="name" placeholder="例如：王小明" class="mt-2 h-12 w-full rounded-lg border border-emerald-900/15 bg-white px-4 text-base font-bold text-emerald-950 outline-none focus:border-emerald-700">
-        </label>
-
         <label for="fileInput" class="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-emerald-700/30 bg-emerald-50 px-5 py-8 text-center text-emerald-900 transition active:scale-[0.99]">
           <i class="fa-solid fa-images mb-3 text-4xl"></i>
           <span class="text-xl font-black">選擇照片或影片</span>
@@ -215,7 +210,6 @@
 
     const els = {
       fileInput: document.getElementById("fileInput"),
-      uploaderName: document.getElementById("uploaderName"),
       previewGrid: document.getElementById("previewGrid"),
       startUploadBtn: document.getElementById("startUploadBtn"),
       fileCount: document.getElementById("fileCount"),
@@ -357,7 +351,7 @@
             }
 
             setStatus(`備份原始檔到 Google Drive ${i + 1} / ${filesToUpload.length}`, "loading");
-            await uploadToGasDrive(item.file, getUploaderName());
+            await uploadToGasDrive(item.file);
             driveSentCount += 1;
           } catch (error) {
             console.error(error);
@@ -424,16 +418,11 @@
       return file.size <= DRIVE_BACKUP_CONFIG.maxCloudinaryVideoBytes;
     }
 
-    function getUploaderName() {
-      return (els.uploaderName.value || "未填姓名").trim();
-    }
-
-    async function uploadToGasDrive(file, uploaderName) {
+    async function uploadToGasDrive(file) {
       const dataUrl = await readFileAsDataUrl(file);
       const payload = {
         fileName: file.name,
         mimeType: file.type || "application/octet-stream",
-        uploaderName,
         size: file.size,
         dataBase64: dataUrl.split(",")[1]
       };
