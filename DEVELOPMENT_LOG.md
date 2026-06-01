@@ -14,6 +14,12 @@
   - 檔案類型判斷已調整：明確影片副檔名/MIME 才走 Google Drive，其餘從檔案選擇器進來的媒體預設當照片上傳 Cloudinary，避免手機照片 MIME 不完整時被略過。
   - Cloudinary 上傳失敗時會把錯誤訊息顯示在頁面狀態列。
   - Cloudinary 上傳成功後，會先把照片 URL 存進瀏覽器本機快取；若 GAS 尚未重新部署導致共享清單讀取失敗，相簿至少會顯示本機已上傳成功的 Cloudinary 照片。
+  - 新增上傳進度 UI：
+    - 整體進度條顯示全部檔案完成比例。
+    - 目前檔案進度條顯示單檔處理階段。
+    - 照片上傳 Cloudinary 改用 `XMLHttpRequest`，可顯示真實上傳百分比。
+    - 影片上傳 Google Drive 顯示 FileReader 讀取進度，送出 GAS 階段顯示 40% 到 95% 的持續進度動畫。
+    - 預覽卡片會標示 `Cloudinary 完成`、`Google Drive 完成` 或 `上傳失敗`。
 - GAS 後端：`gas-drive-upload/Code.gs`
   - 保留 `upload` action 給影片上傳 Google Drive。
   - `upload` action 已加保護：拒收非 `video/*` 檔案，避免照片誤進 Google Drive。
