@@ -170,6 +170,9 @@
           <i class="fa-solid fa-spinner fa-spin mr-2 text-emerald-700"></i>讀取中
         </div>
       </div>
+      <button id="loadMoreBtn" type="button" onclick="loadMoreAlbum()" class="mx-auto mt-5 hidden h-12 rounded-lg bg-emerald-700 px-6 text-base font-black text-white shadow-sm transition active:scale-[0.99]">
+        <i class="fa-solid fa-plus mr-2"></i>載入更多
+      </button>
     </section>
   </main>
 
@@ -194,6 +197,9 @@
 
     let filesToUpload = [];
     let currentPage = "upload";
+    let albumAssets = [];
+    let albumVisibleCount = 0;
+    const ALBUM_PAGE_SIZE = 50;
 
     const els = {
       fileInput: document.getElementById("fileInput"),
@@ -203,6 +209,7 @@
       uploadStatus: document.getElementById("uploadStatus"),
       albumGrid: document.getElementById("albumGrid"),
       albumCount: document.getElementById("albumCount"),
+      loadMoreBtn: document.getElementById("loadMoreBtn"),
       refreshBtn: document.getElementById("refreshBtn"),
       configBadge: document.getElementById("configBadge"),
       lightbox: document.getElementById("lightbox"),
@@ -363,11 +370,13 @@
       if (!hasCloudinaryConfig()) {
         els.albumGrid.innerHTML = emptyState("請先填入 Cloudinary 設定。");
         els.albumCount.textContent = "";
+        els.loadMoreBtn.classList.add("hidden");
         return;
       }
 
       els.albumGrid.innerHTML = loadingState();
       els.albumCount.textContent = "";
+      els.loadMoreBtn.classList.add("hidden");
 
       try {
         const [images, videos] = await Promise.all([
@@ -378,10 +387,11 @@
           return new Date(b.created_at || 0) - new Date(a.created_at || 0);
         });
 
-        renderAlbum(assets);
+        renderAlbum(assets, true);
       } catch (error) {
         console.error(error);
         els.albumGrid.innerHTML = emptyState("讀取失敗，請到 Cloudinary Security 設定開啟 Resource list。");
+        els.loadMoreBtn.classList.add("hidden");
       }
     }
 
@@ -402,17 +412,24 @@
       return (data.resources || []).map(asset => ({ ...asset, resource_type: resourceType }));
     }
 
-    function renderAlbum(assets) {
+    function renderAlbum(assets, reset = false) {
+      if (reset) {
+        albumAssets = assets;
+        albumVisibleCount = 0;
+        els.albumGrid.innerHTML = "";
+      }
+
       if (!assets.length) {
         els.albumGrid.innerHTML = emptyState("目前沒有檔案。");
         els.albumCount.textContent = "";
+        els.loadMoreBtn.classList.add("hidden");
         return;
       }
 
-      els.albumCount.textContent = `${assets.length} 個檔案`;
-      els.albumGrid.innerHTML = "";
+      const nextVisibleCount = Math.min(albumVisibleCount + ALBUM_PAGE_SIZE, albumAssets.length);
+      const nextAssets = albumAssets.slice(albumVisibleCount, nextVisibleCount);
 
-      assets.forEach(asset => {
+      nextAssets.forEach(asset => {
         const urls = buildCloudinaryUrls(asset);
         const tile = document.createElement("button");
         tile.type = "button";
@@ -425,6 +442,14 @@
 
         els.albumGrid.appendChild(tile);
       });
+
+      albumVisibleCount = nextVisibleCount;
+      els.albumCount.textContent = `已顯示 ${albumVisibleCount} / ${albumAssets.length} 個檔案`;
+      els.loadMoreBtn.classList.toggle("hidden", albumVisibleCount >= albumAssets.length);
+    }
+
+    function loadMoreAlbum() {
+      renderAlbum(albumAssets);
     }
 
     function buildCloudinaryUrls(asset) {
