@@ -550,6 +550,8 @@
 
       isUploading = false;
       els.startUploadBtn.disabled = false;
+      filesToUpload.forEach(item => URL.revokeObjectURL(item.previewUrl));
+      filesToUpload = [];
       renderPreview();
       els.startUploadBtn.classList.add("hidden");
 
