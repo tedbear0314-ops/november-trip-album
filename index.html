@@ -45,6 +45,57 @@
       display: block;
     }
 
+    .thumbnail-state-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px;
+      background: rgba(6, 78, 59, 0.84);
+      color: #fff;
+      text-align: center;
+      z-index: 3;
+    }
+
+    .thumbnail-state-overlay.error {
+      background: rgba(153, 27, 27, 0.86);
+    }
+
+    .thumbnail-state-overlay i {
+      font-size: 26px;
+    }
+
+    .thumbnail-state-title {
+      font-size: 15px;
+      font-weight: 900;
+      line-height: 1.15;
+    }
+
+    .thumbnail-state-subtitle {
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 1.2;
+      opacity: 0.9;
+    }
+
+    .thumbnail-spinner {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      border: 3px solid rgba(255, 255, 255, 0.42);
+      border-top-color: #fff;
+      animation: thumbnailSpin 0.85s linear infinite;
+    }
+
+    @keyframes thumbnailSpin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
     .delete-btn {
       position: absolute;
       top: 8px;
@@ -374,12 +425,14 @@
           ? `<video src="${item.previewUrl}" muted playsinline></video><span class="absolute bottom-2 left-2 rounded bg-black/65 px-2 py-1 text-xs font-black text-white"><i class="fa-solid fa-video mr-1"></i>Google Drive</span>`
           : `<img src="${item.previewUrl}" alt=""><span class="absolute bottom-2 left-2 rounded bg-black/65 px-2 py-1 text-xs font-black text-white"><i class="fa-solid fa-image mr-1"></i>Cloudinary</span>`;
         const stateStyle = getUploadStateStyle(item.uploadState);
+        const overlay = renderThumbnailStateOverlay(item);
 
         tile.innerHTML = `
           ${media}
-          <div class="absolute inset-x-2 top-2 rounded bg-white/92 px-2 py-1 text-center text-[11px] font-black text-slate-700 shadow-sm ${stateStyle}">
+          <div class="absolute inset-x-2 top-2 rounded bg-white/92 px-2 py-1 text-center text-[11px] font-black text-slate-700 shadow-sm ${stateStyle} ${item.uploadState === "uploading" || item.uploadState === "error" ? "hidden" : ""}">
             ${item.uploadMessage || "等待上傳"}
           </div>
+          ${overlay}
           ${isUploading ? "" : `
             <button type="button" class="delete-btn" onclick="removeFile(${index})" title="移除">
               <i class="fa-solid fa-xmark"></i>
@@ -416,6 +469,27 @@
       };
 
       return styles[state] || "text-slate-700";
+    }
+
+    function renderThumbnailStateOverlay(item) {
+      if (item.uploadState !== "uploading" && item.uploadState !== "error") {
+        return "";
+      }
+
+      const isError = item.uploadState === "error";
+      const destination = item.kind === "video" ? "Google Drive" : "Cloudinary";
+      const icon = isError ? "fa-solid fa-circle-xmark" : "fa-solid fa-cloud-arrow-up";
+      const title = isError ? "上傳失敗" : "上傳中";
+      const subtitle = isError ? (item.uploadMessage || "請稍後重試") : destination;
+
+      return `
+        <div class="thumbnail-state-overlay ${isError ? "error" : ""}">
+          <i class="${icon}"></i>
+          <div class="thumbnail-state-title">${title}</div>
+          <div class="thumbnail-state-subtitle">${subtitle}</div>
+          ${isError ? "" : '<div class="thumbnail-spinner"></div>'}
+        </div>
+      `;
     }
 
     function updateFileUploadState(id, state, message) {
