@@ -10,8 +10,10 @@
   - 照片：上傳到 Cloudinary image upload endpoint。
   - 影片：透過 GAS 上傳到 Google Drive。
   - 相簿：透過 GAS 讀 Cloudinary 照片 manifest，只渲染照片。
+  - 前端 Drive 上傳函式已加保護：只有影片能呼叫 Google Drive 上傳。
 - GAS 後端：`gas-drive-upload/Code.gs`
   - 保留 `upload` action 給影片上傳 Google Drive。
+  - `upload` action 已加保護：拒收非 `video/*` 檔案，避免照片誤進 Google Drive。
   - 新增 `recordPhoto` action，記錄 Cloudinary 照片 URL。
   - 新增 `listPhotos` action，回傳相簿照片清單。
   - 照片清單存在 Google Drive 目標資料夾內的 `_cloudinary_album_manifest.json`。

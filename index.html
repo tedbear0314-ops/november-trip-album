@@ -191,8 +191,7 @@
     const CLOUDINARY_CONFIG = {
       enabled: true,
       cloudName: "dlknzcex3",
-      uploadPreset: "november_trip_album_unsigned",
-      tags: ["trip-album-2026"]
+      uploadPreset: "november_trip_album_unsigned"
     };
 
     const DRIVE_VIDEO_CONFIG = {
@@ -281,11 +280,13 @@
       let skippedOversizeCount = 0;
 
       selectedFiles.forEach(file => {
-        if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+        const kind = getFileKind(file);
+
+        if (!kind) {
           return;
         }
 
-        if (file.type.startsWith("video/") && file.size > DRIVE_VIDEO_CONFIG.maxDriveBytes) {
+        if (kind === "video" && file.size > DRIVE_VIDEO_CONFIG.maxDriveBytes) {
           skippedOversizeCount += 1;
           return;
         }
@@ -294,7 +295,7 @@
           id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
           file,
           previewUrl: URL.createObjectURL(file),
-          kind: file.type.startsWith("video/") ? "video" : "image"
+          kind
         });
       });
 
@@ -314,8 +315,8 @@
         tile.className = "media-tile ring-1 ring-slate-200";
 
         const media = item.kind === "video"
-          ? `<video src="${item.previewUrl}" muted playsinline></video><span class="absolute bottom-2 left-2 rounded bg-black/65 px-2 py-1 text-xs font-black text-white"><i class="fa-solid fa-video mr-1"></i>影片</span>`
-          : `<img src="${item.previewUrl}" alt="">`;
+          ? `<video src="${item.previewUrl}" muted playsinline></video><span class="absolute bottom-2 left-2 rounded bg-black/65 px-2 py-1 text-xs font-black text-white"><i class="fa-solid fa-video mr-1"></i>Google Drive</span>`
+          : `<img src="${item.previewUrl}" alt=""><span class="absolute bottom-2 left-2 rounded bg-black/65 px-2 py-1 text-xs font-black text-white"><i class="fa-solid fa-image mr-1"></i>Cloudinary</span>`;
 
         tile.innerHTML = `
           ${media}
@@ -405,8 +406,6 @@
       const formData = new FormData();
       formData.append("file", file);
       formData.append("upload_preset", CLOUDINARY_CONFIG.uploadPreset);
-      formData.append("tags", CLOUDINARY_CONFIG.tags.join(","));
-      formData.append("context", `original_filename=${encodeURIComponent(file.name)}`);
 
       const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/image/upload`, {
         method: "POST",
@@ -442,6 +441,10 @@
     }
 
     async function uploadToGasDrive(file) {
+      if (getFileKind(file) !== "video") {
+        throw new Error("Only video files can be uploaded to Google Drive");
+      }
+
       const dataUrl = await readFileAsDataUrl(file);
       const payload = {
         action: "upload",
@@ -463,6 +466,21 @@
         },
         body: JSON.stringify(payload)
       });
+    }
+
+    function getFileKind(file) {
+      const type = (file.type || "").toLowerCase();
+      const name = (file.name || "").toLowerCase();
+
+      if (type.startsWith("image/") || /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(name)) {
+        return "image";
+      }
+
+      if (type.startsWith("video/") || /\.(mp4|mov|m4v|avi|webm)$/i.test(name)) {
+        return "video";
+      }
+
+      return "";
     }
 
     function readFileAsDataUrl(file) {
