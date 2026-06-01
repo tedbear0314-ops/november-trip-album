@@ -138,10 +138,15 @@
         <div class="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 class="text-2xl font-black text-emerald-950">新增照片</h2>
-            <p class="mt-1 text-sm font-semibold text-slate-500">可一次選多張，手機也可以直接拍照上傳。</p>
+            <p class="mt-1 text-sm font-semibold text-slate-500">可一次選多張，照片進相簿，原始檔可備份到 Google Drive。</p>
           </div>
           <div id="configBadge" class="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">待設定</div>
         </div>
+
+        <label class="mb-4 block text-left text-sm font-black text-emerald-950" for="uploaderName">
+          上傳者姓名或暱稱
+          <input id="uploaderName" type="text" inputmode="text" autocomplete="name" placeholder="例如：王小明" class="mt-2 h-12 w-full rounded-lg border border-emerald-900/15 bg-white px-4 text-base font-bold text-emerald-950 outline-none focus:border-emerald-700">
+        </label>
 
         <label for="fileInput" class="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-emerald-700/30 bg-emerald-50 px-5 py-8 text-center text-emerald-900 transition active:scale-[0.99]">
           <i class="fa-solid fa-images mb-3 text-4xl"></i>
@@ -195,6 +200,13 @@
       folder: "november-trip"
     };
 
+    const DRIVE_BACKUP_CONFIG = {
+      enabled: true,
+      gasWebAppUrl: "https://script.google.com/macros/s/AKfycbwhTDrFxWSqw3mLIzSK34xBfU-rb997U2krPxFHcZ_Cs5-hijQ8DTJiJ6If_dqMcSq7/exec",
+      maxDriveBytes: 250 * 1024 * 1024,
+      maxCloudinaryVideoBytes: 100 * 1024 * 1024
+    };
+
     let filesToUpload = [];
     let currentPage = "upload";
     let albumAssets = [];
@@ -203,6 +215,7 @@
 
     const els = {
       fileInput: document.getElementById("fileInput"),
+      uploaderName: document.getElementById("uploaderName"),
       previewGrid: document.getElementById("previewGrid"),
       startUploadBtn: document.getElementById("startUploadBtn"),
       fileCount: document.getElementById("fileCount"),
@@ -228,14 +241,30 @@
     }
 
     function updateConfigBadge() {
+      const hasDriveBackup = hasDriveBackupConfig();
+
+      if (hasCloudinaryConfig() && hasDriveBackup) {
+        els.configBadge.textContent = "相簿+原檔";
+        els.configBadge.className = "rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800";
+        return;
+      }
+
       if (hasCloudinaryConfig()) {
-        els.configBadge.textContent = "已設定";
+        els.configBadge.textContent = "相簿已設定";
         els.configBadge.className = "rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800";
         return;
       }
 
       els.configBadge.textContent = "待設定";
       els.configBadge.className = "rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800";
+    }
+
+    function hasDriveBackupConfig() {
+      return Boolean(
+        DRIVE_BACKUP_CONFIG.enabled &&
+        DRIVE_BACKUP_CONFIG.gasWebAppUrl &&
+        !DRIVE_BACKUP_CONFIG.gasWebAppUrl.startsWith("請填入")
+      );
     }
 
     function switchPage(page) {
@@ -308,25 +337,45 @@
     }
 
     async function processUpload() {
-      if (!hasCloudinaryConfig()) {
-        setStatus("請先填入 Cloudinary cloud name 與 unsigned upload preset。", "warning");
+      if (!hasCloudinaryConfig() && !hasDriveBackupConfig()) {
+        setStatus("請先設定 Cloudinary 或 GAS Google Drive 備份。", "warning");
         return;
       }
 
       els.startUploadBtn.disabled = true;
 
-      let successCount = 0;
+      let albumSuccessCount = 0;
+      let driveSentCount = 0;
       for (let i = 0; i < filesToUpload.length; i += 1) {
         const item = filesToUpload[i];
         setStatus(`上傳中 ${i + 1} / ${filesToUpload.length}`, "loading");
 
-        try {
-          await uploadToCloudinary(item.file);
-          successCount += 1;
-        } catch (error) {
-          console.error(error);
-          setStatus(`上傳失敗：${item.file.name}`, "error");
-          await wait(900);
+        if (hasDriveBackupConfig()) {
+          try {
+            if (item.file.size > DRIVE_BACKUP_CONFIG.maxDriveBytes) {
+              throw new Error("File is larger than the GAS Drive backup limit");
+            }
+
+            setStatus(`備份原始檔到 Google Drive ${i + 1} / ${filesToUpload.length}`, "loading");
+            await uploadToGasDrive(item.file, getUploaderName());
+            driveSentCount += 1;
+          } catch (error) {
+            console.error(error);
+            setStatus(`Google Drive 備份失敗：${item.file.name}`, "error");
+            await wait(900);
+          }
+        }
+
+        if (shouldUploadToCloudinary(item.file) && hasCloudinaryConfig()) {
+          try {
+            setStatus(`上傳到相簿 ${i + 1} / ${filesToUpload.length}`, "loading");
+            await uploadToCloudinary(item.file);
+            albumSuccessCount += 1;
+          } catch (error) {
+            console.error(error);
+            setStatus(`相簿上傳失敗：${item.file.name}`, "error");
+            await wait(900);
+          }
         }
       }
 
@@ -335,7 +384,8 @@
       renderPreview();
       els.startUploadBtn.disabled = false;
 
-      setStatus(`完成上傳 ${successCount} 個檔案`, successCount ? "success" : "error");
+      const driveText = hasDriveBackupConfig() ? `，原檔送出 ${driveSentCount} 個` : "";
+      setStatus(`完成：相簿 ${albumSuccessCount} 個${driveText}`, albumSuccessCount || driveSentCount ? "success" : "error");
 
       if (currentPage === "album") {
         fetchAlbum();
@@ -364,6 +414,47 @@
       }
 
       return result;
+    }
+
+    function shouldUploadToCloudinary(file) {
+      if (!file.type.startsWith("video/")) {
+        return true;
+      }
+
+      return file.size <= DRIVE_BACKUP_CONFIG.maxCloudinaryVideoBytes;
+    }
+
+    function getUploaderName() {
+      return (els.uploaderName.value || "未填姓名").trim();
+    }
+
+    async function uploadToGasDrive(file, uploaderName) {
+      const dataUrl = await readFileAsDataUrl(file);
+      const payload = {
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        uploaderName,
+        size: file.size,
+        dataBase64: dataUrl.split(",")[1]
+      };
+
+      await fetch(DRIVE_BACKUP_CONFIG.gasWebAppUrl, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    function readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
     }
 
     async function fetchAlbum() {
