@@ -137,8 +137,8 @@
       <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-emerald-900/10 sm:p-7">
         <div class="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2 class="text-2xl font-black text-emerald-950">新增照片</h2>
-            <p class="mt-1 text-sm font-semibold text-slate-500">照片會顯示在相簿；影片只備份原檔。單檔上限 200 MB，超過請用 AirDrop。</p>
+            <h2 class="text-2xl font-black text-emerald-950">新增照片與影片</h2>
+            <p class="mt-1 text-sm font-semibold text-slate-500">照片與小影片會保留原檔並顯示在相簿；超過 200 MB 請用 AirDrop。</p>
           </div>
           <div id="configBadge" class="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">待設定</div>
         </div>
@@ -146,7 +146,7 @@
         <label for="fileInput" class="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-emerald-700/30 bg-emerald-50 px-5 py-8 text-center text-emerald-900 transition active:scale-[0.99]">
           <i class="fa-solid fa-images mb-3 text-4xl"></i>
           <span class="text-xl font-black">選擇照片或影片</span>
-          <span class="mt-2 text-sm font-semibold text-emerald-900/60">照片進相簿，影片不顯示；單檔 200 MB 以內</span>
+          <span class="mt-2 text-sm font-semibold text-emerald-900/60">JPG、PNG、HEIC、MP4、MOV；單檔 200 MB 以內</span>
         </label>
         <input type="file" id="fileInput" multiple accept="image/*,video/*" class="hidden" onchange="previewFiles()">
 
@@ -188,13 +188,6 @@
   </div>
 
   <script>
-    const CLOUDINARY_CONFIG = {
-      cloudName: "dlknzcex3",
-      uploadPreset: "november_trip_album_unsigned",
-      tag: "november-trip",
-      folder: "november-trip"
-    };
-
     const DRIVE_BACKUP_CONFIG = {
       enabled: true,
       gasWebAppUrl: "https://script.google.com/macros/s/AKfycbwhTDrFxWSqw3mLIzSK34xBfU-rb997U2krPxFHcZ_Cs5-hijQ8DTJiJ6If_dqMcSq7/exec",
@@ -224,26 +217,9 @@
       lightboxVideo: document.getElementById("lightboxVideo")
     };
 
-    function hasCloudinaryConfig() {
-      return Boolean(
-        CLOUDINARY_CONFIG.cloudName &&
-        CLOUDINARY_CONFIG.uploadPreset &&
-        !CLOUDINARY_CONFIG.cloudName.startsWith("請填入") &&
-        !CLOUDINARY_CONFIG.uploadPreset.startsWith("請填入")
-      );
-    }
-
     function updateConfigBadge() {
-      const hasDriveBackup = hasDriveBackupConfig();
-
-      if (hasCloudinaryConfig() && hasDriveBackup) {
-        els.configBadge.textContent = "相簿+原檔";
-        els.configBadge.className = "rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800";
-        return;
-      }
-
-      if (hasCloudinaryConfig()) {
-        els.configBadge.textContent = "相簿已設定";
+      if (hasDriveBackupConfig()) {
+        els.configBadge.textContent = "Google Drive";
         els.configBadge.className = "rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800";
         return;
       }
@@ -340,16 +316,14 @@
     }
 
     async function processUpload() {
-      if (!hasCloudinaryConfig() && !hasDriveBackupConfig()) {
-        setStatus("請先設定 Cloudinary 或 GAS Google Drive 備份。", "warning");
+      if (!hasDriveBackupConfig()) {
+        setStatus("請先設定 GAS Google Drive 上傳網址。", "warning");
         return;
       }
 
       els.startUploadBtn.disabled = true;
 
-      let albumSuccessCount = 0;
       let driveSentCount = 0;
-      let videoBackupOnlyCount = 0;
       for (let i = 0; i < filesToUpload.length; i += 1) {
         const item = filesToUpload[i];
         setStatus(`上傳中 ${i + 1} / ${filesToUpload.length}`, "loading");
@@ -362,29 +336,12 @@
 
         if (hasDriveBackupConfig()) {
           try {
-            setStatus(`備份原始檔到 Google Drive ${i + 1} / ${filesToUpload.length}`, "loading");
+            setStatus(`上傳原始檔到 Google Drive ${i + 1} / ${filesToUpload.length}`, "loading");
             await uploadToGasDrive(item.file);
             driveSentCount += 1;
           } catch (error) {
             console.error(error);
-            setStatus(`Google Drive 備份失敗：${item.file.name}`, "error");
-            await wait(900);
-          }
-        }
-
-        if (item.file.type.startsWith("video/")) {
-          videoBackupOnlyCount += 1;
-          continue;
-        }
-
-        if (hasCloudinaryConfig()) {
-          try {
-            setStatus(`上傳到相簿 ${i + 1} / ${filesToUpload.length}`, "loading");
-            await uploadToCloudinary(item.file);
-            albumSuccessCount += 1;
-          } catch (error) {
-            console.error(error);
-            setStatus(`相簿上傳失敗：${item.file.name}`, "error");
+            setStatus(`Google Drive 上傳失敗：${item.file.name}`, "error");
             await wait(900);
           }
         }
@@ -395,42 +352,17 @@
       renderPreview();
       els.startUploadBtn.disabled = false;
 
-      const driveText = hasDriveBackupConfig() ? `，原檔備份 ${driveSentCount} 個` : "";
-      const videoText = videoBackupOnlyCount ? `，影片 ${videoBackupOnlyCount} 個只備份不顯示` : "";
-      setStatus(`完成：相簿照片 ${albumSuccessCount} 個${driveText}${videoText}`, albumSuccessCount || driveSentCount ? "success" : "error");
+      setStatus(`完成：原檔上傳 ${driveSentCount} 個，稍後可在相簿看到縮圖。`, driveSentCount ? "success" : "error");
 
       if (currentPage === "album") {
         fetchAlbum();
       }
     }
 
-    async function uploadToCloudinary(file) {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", CLOUDINARY_CONFIG.uploadPreset);
-      formData.append("tags", CLOUDINARY_CONFIG.tag);
-
-      if (CLOUDINARY_CONFIG.folder) {
-        formData.append("folder", CLOUDINARY_CONFIG.folder);
-      }
-
-      const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/auto/upload`;
-      const response = await fetch(url, {
-        method: "POST",
-        body: formData
-      });
-
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(result.error?.message || "Cloudinary upload failed");
-      }
-
-      return result;
-    }
-
     async function uploadToGasDrive(file) {
       const dataUrl = await readFileAsDataUrl(file);
       const payload = {
+        action: "upload",
         fileName: file.name,
         mimeType: file.type || "application/octet-stream",
         size: file.size,
@@ -457,8 +389,8 @@
     }
 
     async function fetchAlbum() {
-      if (!hasCloudinaryConfig()) {
-        els.albumGrid.innerHTML = emptyState("請先填入 Cloudinary 設定。");
+      if (!hasDriveBackupConfig()) {
+        els.albumGrid.innerHTML = emptyState("請先設定 GAS Google Drive 上傳網址。");
         els.albumCount.textContent = "";
         els.loadMoreBtn.classList.add("hidden");
         return;
@@ -469,37 +401,57 @@
       els.loadMoreBtn.classList.add("hidden");
 
       try {
-        const [images, videos] = await Promise.all([
-          fetchCloudinaryList("image"),
-          fetchCloudinaryList("video")
-        ]);
-        const assets = [...images, ...videos].sort((a, b) => {
-          return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-        });
-
+        const assets = await fetchDriveAlbumList();
         renderAlbum(assets, true);
       } catch (error) {
         console.error(error);
-        els.albumGrid.innerHTML = emptyState("讀取失敗，請到 Cloudinary Security 設定開啟 Resource list。");
+        els.albumGrid.innerHTML = emptyState("讀取失敗，請確認 Apps Script 已重新部署。");
         els.loadMoreBtn.classList.add("hidden");
       }
     }
 
-    async function fetchCloudinaryList(resourceType) {
-      const tag = encodeURIComponent(CLOUDINARY_CONFIG.tag);
-      const url = `https://res.cloudinary.com/${CLOUDINARY_CONFIG.cloudName}/${resourceType}/list/${tag}.json`;
-      const response = await fetch(url, { cache: "no-store" });
+    function fetchDriveAlbumList() {
+      return loadGasJsonp({ action: "list" }).then(result => {
+        if (!result || result.ok === false) {
+          throw new Error(result && result.error ? result.error : "Drive list failed");
+        }
 
-      if (response.status === 404) {
-        return [];
-      }
+        return result.files || [];
+      });
+    }
 
-      if (!response.ok) {
-        throw new Error(`Cloudinary list ${resourceType} failed`);
-      }
+    function loadGasJsonp(params) {
+      return new Promise((resolve, reject) => {
+        const callbackName = `gasCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const url = new URL(DRIVE_BACKUP_CONFIG.gasWebAppUrl);
+        Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+        url.searchParams.set("callback", callbackName);
 
-      const data = await response.json();
-      return (data.resources || []).map(asset => ({ ...asset, resource_type: resourceType }));
+        const script = document.createElement("script");
+        const timeoutId = window.setTimeout(() => {
+          cleanup();
+          reject(new Error("GAS list request timed out"));
+        }, 30000);
+
+        function cleanup() {
+          window.clearTimeout(timeoutId);
+          delete window[callbackName];
+          script.remove();
+        }
+
+        window[callbackName] = data => {
+          cleanup();
+          resolve(data);
+        };
+
+        script.onerror = () => {
+          cleanup();
+          reject(new Error("GAS list request failed"));
+        };
+
+        script.src = url.toString();
+        document.body.appendChild(script);
+      });
     }
 
     function renderAlbum(assets, reset = false) {
@@ -520,15 +472,21 @@
       const nextAssets = albumAssets.slice(albumVisibleCount, nextVisibleCount);
 
       nextAssets.forEach(asset => {
-        const urls = buildCloudinaryUrls(asset);
         const tile = document.createElement("button");
         tile.type = "button";
         tile.className = "media-tile bg-white text-left shadow-sm ring-1 ring-emerald-900/10 transition active:scale-[0.99]";
-        tile.onclick = () => openLightbox(urls.full, asset.resource_type, urls.download);
+        tile.onclick = () => {
+          if (asset.kind === "video") {
+            window.open(asset.viewUrl, "_blank", "noopener");
+            return;
+          }
 
-        tile.innerHTML = asset.resource_type === "video"
-          ? `<video src="${urls.thumb}" muted playsinline preload="metadata"></video><span class="absolute bottom-2 left-2 rounded bg-black/65 px-2 py-1 text-xs font-black text-white"><i class="fa-solid fa-video mr-1"></i>影片</span>`
-          : `<img src="${urls.thumb}" loading="lazy" alt="">`;
+          openLightbox(asset.thumbUrl, asset.kind || "image", asset.viewUrl);
+        };
+
+        tile.innerHTML = asset.kind === "video"
+          ? `<img src="${asset.thumbUrl}" loading="lazy" alt=""><span class="absolute bottom-2 left-2 rounded bg-black/65 px-2 py-1 text-xs font-black text-white"><i class="fa-solid fa-video mr-1"></i>影片</span>`
+          : `<img src="${asset.thumbUrl}" loading="lazy" alt="">`;
 
         els.albumGrid.appendChild(tile);
       });
@@ -540,28 +498,6 @@
 
     function loadMoreAlbum() {
       renderAlbum(albumAssets);
-    }
-
-    function buildCloudinaryUrls(asset) {
-      const base = `https://res.cloudinary.com/${CLOUDINARY_CONFIG.cloudName}/${asset.resource_type}/upload`;
-      const version = asset.version ? `/v${asset.version}` : "";
-      const publicId = asset.public_id.split("/").map(encodeURIComponent).join("/");
-      const extension = asset.format ? `.${asset.format}` : "";
-      const source = `${base}${version}/${publicId}${extension}`;
-
-      if (asset.resource_type === "video") {
-        return {
-          thumb: `${base}/f_auto,q_auto,so_0,w_700,c_fill,ar_1:1${version}/${publicId}${extension}`,
-          full: source,
-          download: `${base}/fl_attachment${version}/${publicId}${extension}`
-        };
-      }
-
-      return {
-        thumb: `${base}/f_auto,q_auto,w_700,c_fill,ar_1:1${version}/${publicId}${extension}`,
-        full: `${base}/f_auto,q_auto${version}/${publicId}${extension}`,
-        download: `${base}/fl_attachment${version}/${publicId}${extension}`
-      };
     }
 
     function openLightbox(url, resourceType, downloadUrl) {
