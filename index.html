@@ -138,7 +138,7 @@
         <div class="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 class="text-2xl font-black text-emerald-950">新增照片</h2>
-            <p class="mt-1 text-sm font-semibold text-slate-500">可一次選多張，照片進相簿，原始檔可備份到 Google Drive。</p>
+            <p class="mt-1 text-sm font-semibold text-slate-500">單檔上限 200 MB，超過請用 AirDrop 傳原始檔。</p>
           </div>
           <div id="configBadge" class="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">待設定</div>
         </div>
@@ -146,7 +146,7 @@
         <label for="fileInput" class="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-emerald-700/30 bg-emerald-50 px-5 py-8 text-center text-emerald-900 transition active:scale-[0.99]">
           <i class="fa-solid fa-images mb-3 text-4xl"></i>
           <span class="text-xl font-black">選擇照片或影片</span>
-          <span class="mt-2 text-sm font-semibold text-emerald-900/60">JPG、PNG、HEIC、MP4、MOV</span>
+          <span class="mt-2 text-sm font-semibold text-emerald-900/60">JPG、PNG、HEIC、MP4、MOV；單檔 200 MB 以內</span>
         </label>
         <input type="file" id="fileInput" multiple accept="image/*,video/*" class="hidden" onchange="previewFiles()">
 
@@ -198,7 +198,7 @@
     const DRIVE_BACKUP_CONFIG = {
       enabled: true,
       gasWebAppUrl: "https://script.google.com/macros/s/AKfycbwhTDrFxWSqw3mLIzSK34xBfU-rb997U2krPxFHcZ_Cs5-hijQ8DTJiJ6If_dqMcSq7/exec",
-      maxDriveBytes: 250 * 1024 * 1024,
+      maxDriveBytes: 200 * 1024 * 1024,
       maxCloudinaryVideoBytes: 100 * 1024 * 1024
     };
 
@@ -281,9 +281,15 @@
 
     function previewFiles() {
       const selectedFiles = Array.from(els.fileInput.files || []);
+      let skippedOversizeCount = 0;
 
       selectedFiles.forEach(file => {
         if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+          return;
+        }
+
+        if (file.size > DRIVE_BACKUP_CONFIG.maxDriveBytes) {
+          skippedOversizeCount += 1;
           return;
         }
 
@@ -297,6 +303,10 @@
 
       els.fileInput.value = "";
       renderPreview();
+
+      if (skippedOversizeCount > 0) {
+        setStatus(`已略過 ${skippedOversizeCount} 個超過 200 MB 的檔案，請用 AirDrop 傳原始檔。`, "warning");
+      }
     }
 
     function renderPreview() {
@@ -344,12 +354,14 @@
         const item = filesToUpload[i];
         setStatus(`上傳中 ${i + 1} / ${filesToUpload.length}`, "loading");
 
+        if (item.file.size > DRIVE_BACKUP_CONFIG.maxDriveBytes) {
+          setStatus(`${item.file.name} 超過 200 MB，請用 AirDrop 傳原始檔。`, "warning");
+          await wait(900);
+          continue;
+        }
+
         if (hasDriveBackupConfig()) {
           try {
-            if (item.file.size > DRIVE_BACKUP_CONFIG.maxDriveBytes) {
-              throw new Error("File is larger than the GAS Drive backup limit");
-            }
-
             setStatus(`備份原始檔到 Google Drive ${i + 1} / ${filesToUpload.length}`, "loading");
             await uploadToGasDrive(item.file);
             driveSentCount += 1;
