@@ -290,6 +290,10 @@
     let currentPage = "upload";
     let albumAssets = [];
     let albumVisibleCount = 0;
+    let albumNextOffset = 0;
+    let albumTotalCount = 0;
+    let albumHasMore = false;
+    let isAlbumLoading = false;
     let isUploading = false;
     const ALBUM_PAGE_SIZE = 50;
 
@@ -887,10 +891,15 @@
       els.albumGrid.innerHTML = loadingState();
       els.albumCount.textContent = "";
       els.loadMoreBtn.classList.add("hidden");
+      albumAssets = [];
+      albumVisibleCount = 0;
+      albumNextOffset = 0;
+      albumTotalCount = 0;
+      albumHasMore = false;
 
       try {
-        const assets = await fetchDriveAlbumList();
-        renderAlbum(assets, true);
+        const page = await fetchDriveAlbumList(0);
+        renderAlbumPage(page, true);
       } catch (error) {
         console.error(error);
         els.albumGrid.innerHTML = emptyState("目前無法讀取 Google Drive 相簿，請確認 Apps Script 已重新部署。");
@@ -898,13 +907,24 @@
       }
     }
 
-    function fetchDriveAlbumList() {
-      return loadGasJsonp({ action: "list" }).then(result => {
+    function fetchDriveAlbumList(offset = 0) {
+      return loadGasJsonp({
+        action: "list",
+        offset: String(offset),
+        limit: String(ALBUM_PAGE_SIZE)
+      }).then(result => {
         if (!result || result.ok === false) {
           throw new Error(result && result.error ? result.error : "Google Drive list failed");
         }
 
-        return result.files || [];
+        const files = result.files || [];
+
+        return {
+          files,
+          total: Number(result.total || files.length),
+          hasMore: Boolean(result.hasMore),
+          nextOffset: Number(result.nextOffset || offset + files.length)
+        };
       });
     }
 
@@ -943,24 +963,32 @@
       });
     }
 
-    function renderAlbum(assets, reset = false) {
+    function renderAlbumPage(page, reset = false) {
+      const assets = page.files || [];
+
       if (reset) {
-        albumAssets = assets;
+        albumAssets = [];
         albumVisibleCount = 0;
+        albumNextOffset = 0;
+        albumTotalCount = Number(page.total || 0);
+        albumHasMore = false;
         els.albumGrid.innerHTML = "";
       }
 
-      if (!assets.length) {
+      albumAssets = albumAssets.concat(assets);
+      albumVisibleCount = albumAssets.length;
+      albumTotalCount = Number(page.total || albumVisibleCount);
+      albumNextOffset = Number(page.nextOffset || albumVisibleCount);
+      albumHasMore = Boolean(page.hasMore);
+
+      if (!albumAssets.length) {
         els.albumGrid.innerHTML = emptyState("目前沒有照片或影片。");
         els.albumCount.textContent = "";
         els.loadMoreBtn.classList.add("hidden");
         return;
       }
 
-      const nextVisibleCount = Math.min(albumVisibleCount + ALBUM_PAGE_SIZE, albumAssets.length);
-      const nextAssets = albumAssets.slice(albumVisibleCount, nextVisibleCount);
-
-      nextAssets.forEach(asset => {
+      assets.forEach(asset => {
         const tile = document.createElement("button");
         tile.type = "button";
         tile.className = "media-tile bg-white text-left shadow-sm ring-1 ring-emerald-900/10 transition active:scale-[0.99]";
@@ -973,13 +1001,32 @@
         els.albumGrid.appendChild(tile);
       });
 
-      albumVisibleCount = nextVisibleCount;
-      els.albumCount.textContent = `已顯示 ${albumVisibleCount} / ${albumAssets.length} 個 Google Drive 檔案`;
-      els.loadMoreBtn.classList.toggle("hidden", albumVisibleCount >= albumAssets.length);
+      els.albumCount.textContent = `已顯示 ${albumVisibleCount} / ${albumTotalCount} 個 Google Drive 檔案`;
+      els.loadMoreBtn.classList.toggle("hidden", !albumHasMore);
+      els.loadMoreBtn.disabled = false;
+      els.loadMoreBtn.innerHTML = '<i class="fa-solid fa-plus mr-2"></i>載入更多';
     }
 
-    function loadMoreAlbum() {
-      renderAlbum(albumAssets);
+    async function loadMoreAlbum() {
+      if (isAlbumLoading || !albumHasMore) {
+        return;
+      }
+
+      isAlbumLoading = true;
+      els.loadMoreBtn.disabled = true;
+      els.loadMoreBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>讀取中';
+
+      try {
+        const page = await fetchDriveAlbumList(albumNextOffset);
+        renderAlbumPage(page, false);
+      } catch (error) {
+        console.error(error);
+        els.loadMoreBtn.disabled = false;
+        els.loadMoreBtn.innerHTML = '<i class="fa-solid fa-plus mr-2"></i>載入更多';
+        setStatus("載入更多失敗，請稍後再試。", "warning");
+      } finally {
+        isAlbumLoading = false;
+      }
     }
 
     function openMedia(asset) {

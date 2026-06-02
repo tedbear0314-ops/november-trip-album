@@ -17,11 +17,12 @@
     - 預覽卡片會標示 `Google Drive 完成` 或 `上傳失敗`。
   - 照片上傳前會由前端壓縮產生一張 JPG 縮圖，一起送到 GAS。
   - 影片上傳前會由前端擷取一張 JPG 縮圖，一起送到 GAS。
-- GAS 後端：`gas-drive-upload/Code.gs`
+  - GAS 後端：`gas-drive-upload/Code.gs`
   - `upload` action 改為接受 `image/*` 與 `video/*`。
-  - `list` action 回傳 Google Drive 資料夾內最新媒體檔案。
+  - `list` action 支援 `offset` / `limit` 分頁，前端第一次只讀 50 筆，降低手機端等待時間。
   - 照片與影片縮圖會放在目標 Drive 資料夾底下的 `_album_thumbnails` 子資料夾。
   - 縮圖檔名為 `thumb_<原始檔案ID>.jpg`，相簿會優先拿它們當封面。
+  - 讀取相簿時會一次建立縮圖索引，避免每個檔案都重新查一次縮圖資料夾。
   - 移除 `recordPhoto`、`listPhotos`、`syncCloudinaryPhotos` 與 Cloudinary API 設定。
 
 ### 目前需要設定
@@ -99,7 +100,7 @@
 - 影片:
   - 顯示縮圖與 `影片` 標籤。
   - 點擊後開啟 Google Drive 預覽頁。
-- 前端每次顯示 50 個檔案，有更多時顯示 `載入更多`。
+- 前端每次向 GAS 讀取 50 個檔案，有更多時顯示 `載入更多` 再抓下一批。
 - GAS 目前最多回傳最新 300 個媒體檔案，避免 Apps Script 太慢或超時。
 
 ### 重要決策
