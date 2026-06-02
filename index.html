@@ -1035,15 +1035,23 @@
         return;
       }
 
-      openLightbox(asset.viewUrl || asset.thumbUrl, asset.downloadUrl || asset.viewUrl);
+      openLightbox(
+        asset.largeUrl || asset.secureUrl || asset.viewUrl || asset.thumbUrl,
+        asset.downloadUrl || asset.viewUrl,
+        asset.thumbUrl || asset.thumbnailUrl
+      );
     }
 
-    function openLightbox(url, downloadUrl) {
+    function openLightbox(url, downloadUrl, fallbackUrl) {
       els.lightboxImg.style.display = "block";
       els.lightboxVideo.style.display = "none";
       els.lightboxDownload.href = downloadUrl || url;
       els.lightboxVideo.pause();
       els.lightboxVideo.removeAttribute("src");
+      els.lightboxImg.onerror = () => {
+        els.lightboxImg.onerror = null;
+        els.lightboxImg.src = fallbackUrl || placeholderDataUrl("image");
+      };
       els.lightboxImg.src = url;
 
       els.lightbox.style.display = "flex";
@@ -1061,6 +1069,7 @@
       els.lightbox.style.display = "none";
       els.lightboxVideo.pause();
       els.lightboxVideo.removeAttribute("src");
+      els.lightboxImg.onerror = null;
       els.lightboxImg.removeAttribute("src");
       document.body.style.overflow = "auto";
     }
