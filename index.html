@@ -838,7 +838,7 @@
         tile.className = "media-tile bg-white text-left shadow-sm ring-1 ring-emerald-900/10 transition active:scale-[0.99]";
         tile.onclick = () => openMedia(asset);
         tile.innerHTML = `
-          <img src="${asset.thumbUrl || asset.thumbnailUrl || asset.secureUrl}" loading="lazy" alt="">
+          <img src="${asset.thumbUrl || asset.thumbnailUrl || asset.secureUrl || placeholderDataUrl(asset.kind)}" loading="lazy" alt="" onerror="this.onerror=null; this.src='${placeholderDataUrl(asset.kind)}';">
           ${asset.kind === "video" ? '<span class="absolute bottom-2 left-2 rounded bg-black/65 px-2 py-1 text-xs font-black text-white"><i class="fa-solid fa-video mr-1"></i>影片</span>' : ""}
         `;
 
@@ -873,6 +873,13 @@
 
       els.lightbox.style.display = "flex";
       document.body.style.overflow = "hidden";
+    }
+
+    function placeholderDataUrl(kind) {
+      const label = kind === "video" ? "影片" : "照片";
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="700" height="700" viewBox="0 0 700 700"><rect width="700" height="700" fill="#e8efe8"/><text x="350" y="350" text-anchor="middle" dominant-baseline="middle" fill="#166534" font-family="Arial,sans-serif" font-size="72" font-weight="700">${label}</text></svg>`;
+
+      return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
     }
 
     function closeLightbox() {
