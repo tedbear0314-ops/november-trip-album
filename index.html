@@ -651,20 +651,21 @@
     }
 
     async function uploadToGasDriveWithProgress(file, onProgress) {
-      let videoThumbnail = null;
+      let mediaThumbnail = null;
+      const kind = getFileKind(file);
 
-      if (getFileKind(file) === "video") {
+      if (kind === "image" || kind === "video") {
         onProgress(2);
-        videoThumbnail = await generateVideoThumbnail(file).catch(error => {
-          console.warn("Video thumbnail generation failed", error);
+        mediaThumbnail = await generateMediaThumbnail(file, kind).catch(error => {
+          console.warn("Media thumbnail generation failed", error);
           return null;
         });
         onProgress(5);
       }
 
       const dataUrl = await readFileAsDataUrlWithProgress(file, percent => {
-        const readStart = videoThumbnail ? 5 : 0;
-        const readScale = videoThumbnail ? 35 : 40;
+        const readStart = mediaThumbnail ? 5 : 0;
+        const readScale = mediaThumbnail ? 35 : 40;
         onProgress(readStart + percent * (readScale / 100));
       });
       const payload = {
@@ -675,9 +676,9 @@
         dataBase64: dataUrl.split(",")[1]
       };
 
-      if (videoThumbnail) {
-        payload.thumbnailMimeType = videoThumbnail.mimeType;
-        payload.thumbnailBase64 = videoThumbnail.dataUrl.split(",")[1];
+      if (mediaThumbnail) {
+        payload.thumbnailMimeType = mediaThumbnail.mimeType;
+        payload.thumbnailBase64 = mediaThumbnail.dataUrl.split(",")[1];
       }
 
       const stopIndeterminateProgress = startIndeterminateUploadProgress(onProgress);
@@ -716,6 +717,46 @@
       return "image";
     }
 
+    function generateMediaThumbnail(file, kind) {
+      return kind === "video" ? generateVideoThumbnail(file) : generateImageThumbnail(file);
+    }
+
+    function generateImageThumbnail(file) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+        const timeoutId = window.setTimeout(() => {
+          cleanup();
+          reject(new Error("Image thumbnail timeout"));
+        }, 8000);
+
+        function cleanup() {
+          window.clearTimeout(timeoutId);
+          img.removeAttribute("src");
+          URL.revokeObjectURL(objectUrl);
+        }
+
+        img.onload = () => {
+          try {
+            const sourceWidth = img.naturalWidth || 700;
+            const sourceHeight = img.naturalHeight || 700;
+            const dataUrl = drawThumbnailToDataUrl(img, sourceWidth, sourceHeight);
+
+            cleanup();
+            resolve({ dataUrl, mimeType: "image/jpeg" });
+          } catch (error) {
+            cleanup();
+            reject(error);
+          }
+        };
+        img.onerror = () => {
+          cleanup();
+          reject(new Error("Image cannot be loaded for thumbnail"));
+        };
+        img.src = objectUrl;
+      });
+    }
+
     function generateVideoThumbnail(file) {
       return new Promise((resolve, reject) => {
         const video = document.createElement("video");
@@ -736,14 +777,8 @@
           try {
             const sourceWidth = video.videoWidth || 700;
             const sourceHeight = video.videoHeight || 700;
-            const maxSide = 900;
-            const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
-            const canvas = document.createElement("canvas");
+            const dataUrl = drawThumbnailToDataUrl(video, sourceWidth, sourceHeight);
 
-            canvas.width = Math.max(1, Math.round(sourceWidth * scale));
-            canvas.height = Math.max(1, Math.round(sourceHeight * scale));
-            canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-            const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
             cleanup();
             resolve({ dataUrl, mimeType: "image/jpeg" });
           } catch (error) {
@@ -778,6 +813,17 @@
         video.src = objectUrl;
         video.load();
       });
+    }
+
+    function drawThumbnailToDataUrl(source, sourceWidth, sourceHeight) {
+      const maxSide = 900;
+      const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
+      const canvas = document.createElement("canvas");
+
+      canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+      canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+      canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg", 0.78);
     }
 
     function inferMimeType(fileName) {
