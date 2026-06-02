@@ -2,56 +2,36 @@
 
 ## 2026-06-02
 
-### 架構調整：照片 Cloudinary、影片 Google Drive
+### 架構調整：全部改回 Google Drive
 
-- 使用者決定將照片改回 Cloudinary，影片檔一律放到 Google Drive。
-- 相簿只顯示照片，不顯示影片。
+- 使用者決定放棄 Cloudinary 分流，照片與影片全部上傳到 Google Drive。
 - 前端檔案：`index.html`
-  - 照片：上傳到 Cloudinary image upload endpoint。
+  - 照片：透過 GAS 上傳到 Google Drive。
   - 影片：透過 GAS 上傳到 Google Drive。
-  - 相簿：透過 GAS 讀 Cloudinary 照片 manifest，只渲染照片。
-  - 前端 Drive 上傳函式已加保護：只有影片能呼叫 Google Drive 上傳。
-  - 檔案類型判斷已調整：明確影片副檔名/MIME 才走 Google Drive，其餘從檔案選擇器進來的媒體預設當照片上傳 Cloudinary，避免手機照片 MIME 不完整時被略過。
-  - Cloudinary 上傳失敗時會把錯誤訊息顯示在頁面狀態列。
-  - Cloudinary 上傳成功後，會先把照片 URL 存進瀏覽器本機快取；若 GAS 尚未重新部署導致共享清單讀取失敗，相簿至少會顯示本機已上傳成功的 Cloudinary 照片。
-  - 整批上傳完成後，如果本批有照片，前端會呼叫 GAS `syncCloudinaryPhotos`，用 Cloudinary `trip-album-2026` tag 的真實清單補齊 manifest。
-  - 新增上傳進度 UI：
+  - 相簿：透過 GAS `list` action 讀 Google Drive 目標資料夾內的媒體檔。
+  - 移除 Cloudinary unsigned upload、manifest、本機快取與同步流程。
+  - 保留上傳進度 UI：
     - 整體進度條顯示全部檔案完成比例。
     - 目前檔案進度條顯示單檔處理階段。
-    - 照片上傳 Cloudinary 改用 `XMLHttpRequest`，可顯示真實上傳百分比。
-    - 影片上傳 Google Drive 顯示 FileReader 讀取進度，送出 GAS 階段顯示 40% 到 95% 的持續進度動畫。
-    - 預覽卡片會標示 `Cloudinary 完成`、`Google Drive 完成` 或 `上傳失敗`。
+    - 照片與影片都顯示 FileReader 讀取進度，送出 GAS 階段顯示 40% 到 95% 的持續進度動畫。
+    - 預覽卡片會標示 `Google Drive 完成` 或 `上傳失敗`。
 - GAS 後端：`gas-drive-upload/Code.gs`
-  - 保留 `upload` action 給影片上傳 Google Drive。
-  - `upload` action 已加保護：拒收非 `video/*` 檔案，避免照片誤進 Google Drive。
-  - 新增 `recordPhoto` action，記錄 Cloudinary 照片 URL。
-  - 新增 `listPhotos` action，回傳相簿照片清單。
-  - 新增 `syncCloudinaryPhotos` action，使用 Cloudinary Search API 同步 `trip-album-2026` 照片到 manifest，並加 30 秒節流避免浪費 API requests。
-  - 照片清單存在 Google Drive 目標資料夾內的 `_cloudinary_album_manifest.json`。
+  - `upload` action 改為接受 `image/*` 與 `video/*`。
+  - `list` action 回傳 Google Drive 資料夾內最新媒體檔案。
+  - 移除 `recordPhoto`、`listPhotos`、`syncCloudinaryPhotos` 與 Cloudinary API 設定。
 
 ### 目前需要設定
 
-- Cloudinary cloud name 已確認：
-  - `dlknzcex3`
-- Cloudinary unsigned upload preset 已填入 `index.html`：
-  - `november_trip_album_unsigned`
-  - Cloudinary preset 內的 asset folder：`november-trip`
 - GAS Web App URL 維持：
   - `https://script.google.com/macros/s/AKfycbwhTDrFxWSqw3mLIzSK34xBfU-rb997U2krPxFHcZ_Cs5-hijQ8DTJiJ6If_dqMcSq7/exec`
 - Google Drive 目標資料夾 ID 維持：
   - `1VJsck6LCc2ub4QkGy-qLUWLpXbRgdm_g`
-- Apps Script Script Properties 需要設定：
-  - `CLOUDINARY_API_KEY`
-  - `CLOUDINARY_API_SECRET`
-  - `CLOUDINARY_CLOUD_NAME` 可不填，預設 `dlknzcex3`
 
 ### 驗證待辦
 
-- Cloudinary unsigned upload preset 已確認，後續若修改 preset 記得同步測試前端上傳。
-- 重新部署 GAS，讓 `recordPhoto` / `listPhotos` 生效。
-- 設定 Cloudinary API key/secret 後，測試 `syncCloudinaryPhotos` 是否能把 Cloudinary tag 清單同步到 manifest。
-- 用小照片測試 Cloudinary 上傳、manifest 記錄、相簿刷新。
-- 用小影片測試只上傳 Google Drive，且不出現在相簿。
+- 重新部署 GAS，讓照片也能透過 `upload` action 進 Google Drive。
+- 用小照片測試 Google Drive 上傳與相簿刷新。
+- 用小影片測試 Google Drive 上傳、縮圖顯示與點擊開 Drive 預覽。
 
 ## 2026-06-01
 
