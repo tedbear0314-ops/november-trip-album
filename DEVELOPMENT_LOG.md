@@ -15,9 +15,12 @@
     - 目前檔案進度條顯示單檔處理階段。
     - 照片與影片都顯示 FileReader 讀取進度，送出 GAS 階段顯示 40% 到 95% 的持續進度動畫。
     - 預覽卡片會標示 `Google Drive 完成` 或 `上傳失敗`。
+  - 影片上傳前會由前端擷取一張 JPG 縮圖，一起送到 GAS。
 - GAS 後端：`gas-drive-upload/Code.gs`
   - `upload` action 改為接受 `image/*` 與 `video/*`。
   - `list` action 回傳 Google Drive 資料夾內最新媒體檔案。
+  - 影片縮圖會放在目標 Drive 資料夾底下的 `_video_thumbnails` 子資料夾。
+  - 縮圖檔名為 `video_thumb_<影片檔案ID>.jpg`，相簿會優先拿它們當影片封面。
   - 移除 `recordPhoto`、`listPhotos`、`syncCloudinaryPhotos` 與 Cloudinary API 設定。
 
 ### 目前需要設定
@@ -88,6 +91,7 @@
 
 - 相簿來源：Google Drive 資料夾。
 - GAS 使用 `file.getThumbnail()` 產生縮圖，再轉成 base64 data URL 回傳給前端。
+- 新上傳的影片會額外儲存一張前端擷取的 JPG 縮圖到 `_video_thumbnails` 子資料夾；相簿會優先使用這張縮圖。
 - 圖片：
   - 顯示縮圖。
   - 點擊後用燈箱預覽縮圖。
