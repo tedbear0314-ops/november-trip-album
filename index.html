@@ -588,6 +588,7 @@
       let photoSentCount = 0;
       let videoSentCount = 0;
       let failedCount = 0;
+      let syncFailed = false;
       const totalFiles = filesToUpload.length;
 
       if (!totalFiles) {
@@ -677,6 +678,27 @@
         }
       }
 
+      if (photoSentCount > 0) {
+        try {
+          setUploadProgress({
+            overallPercent: 100,
+            currentPercent: 100,
+            message: "正在同步 Cloudinary 相簿清單，請稍等。",
+            type: "loading"
+          });
+          await syncCloudinaryAlbum();
+        } catch (error) {
+          console.error(error);
+          syncFailed = true;
+          setUploadProgress({
+            overallPercent: 100,
+            currentPercent: 100,
+            message: `照片已上傳，但 Cloudinary 同步未完成（${error.message || "未知錯誤"}）`,
+            type: "warning"
+          });
+        }
+      }
+
       isUploading = false;
       els.startUploadBtn.disabled = false;
       filesToUpload.forEach(item => URL.revokeObjectURL(item.previewUrl));
@@ -685,8 +707,8 @@
       els.startUploadBtn.classList.add("hidden");
 
       setStatus(
-        `完成：照片 ${photoSentCount} 張、影片 ${videoSentCount} 支${failedCount ? `，失敗 ${failedCount} 個` : ""}。`,
-        photoSentCount || videoSentCount ? "success" : "error"
+        `完成：照片 ${photoSentCount} 張、影片 ${videoSentCount} 支${failedCount ? `，失敗 ${failedCount} 個` : ""}${syncFailed ? "，相簿同步未完成" : ""}。`,
+        syncFailed ? "warning" : (photoSentCount || videoSentCount ? "success" : "error")
       );
 
       if (currentPage === "album") {
@@ -735,6 +757,16 @@
         xhr.onabort = () => reject(new Error("Cloudinary upload canceled"));
         xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/image/upload`);
         xhr.send(formData);
+      });
+    }
+
+    function syncCloudinaryAlbum() {
+      return loadGasJsonp({ action: "syncCloudinaryPhotos" }).then(result => {
+        if (!result || result.ok === false) {
+          throw new Error(result && result.error ? result.error : "Cloudinary sync failed");
+        }
+
+        return result;
       });
     }
 
