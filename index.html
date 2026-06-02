@@ -924,6 +924,7 @@
         const callbackName = `gasCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const url = new URL(DRIVE_VIDEO_CONFIG.gasWebAppUrl);
         Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+        url.searchParams.set("_ts", Date.now().toString());
         url.searchParams.set("callback", callbackName);
 
         const script = document.createElement("script");
@@ -981,7 +982,7 @@
       });
 
       albumVisibleCount = nextVisibleCount;
-      els.albumCount.textContent = `已顯示 ${albumVisibleCount} / ${albumAssets.length} 個檔案`;
+      els.albumCount.textContent = `已顯示 ${albumVisibleCount} / ${albumAssets.length} 張雲端相簿照片`;
       els.loadMoreBtn.classList.toggle("hidden", albumVisibleCount >= albumAssets.length);
     }
 
